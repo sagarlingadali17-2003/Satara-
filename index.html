@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1">
     <title>Satara Spatial Intelligence Dashboard</title>
     
-    <!-- External Libraries -->
-    <link rel="stylesheet" href="css/leaflet.css">
+    <!-- External Libraries (Using CDNs to fix the blank map issue) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     
@@ -212,8 +212,10 @@
         </div>
     </div>
 
-    <!-- Scripts (Using your exact local paths) -->
-    <script src="js/leaflet.js"></script>
+    <!-- Leaflet JS from CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Data Scripts (Make sure your /data folder is uploaded correctly to GitHub) -->
     <script src="data/satara_b_2.js"></script>
     <script src="data/landuse_3.js"></script>
     <script src="data/building_4.js"></script>
@@ -229,6 +231,9 @@
         }).fitBounds([[16.493,72.427],[18.359,76.093]]);
         
         map.zoomControl.setPosition('bottomleft');
+
+        // Force Leaflet to recalculate size after loading (Fix for blank map in flexbox containers)
+        setTimeout(function(){ map.invalidateSize(); }, 500);
 
         // 2. Basemaps
         var basemapSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 28 }).addTo(map);
@@ -268,4 +273,65 @@
         const styles = {
             satara: { color: 'rgba(255, 255, 255, 0.8)', weight: 2, fillOpacity: 0.1, fillColor: '#ffffff' },
             landuse: { color: 'transparent', weight: 0, fillOpacity: 0.6, fillColor: '#2E8B57' },
-            water: { color
+            water: { color: 'transparent', weight: 0, fillOpacity: 0.7, fillColor: '#4DA8DA' },
+            waterways: { color: '#4DA8DA', weight: 2, fillOpacity: 0 },
+            road: { color: '#FF5A5A', weight: 1.5, fillOpacity: 0 },
+            railway: { color: '#F39C12', weight: 2, dashArray: '4, 4', fillOpacity: 0 },
+            building: { color: '#C45317', weight: 1, fillOpacity: 0.8, fillColor: '#E67E22' }
+        };
+
+        // 5. Layer Initialization Generator
+        function loadCustomLayer(geojsonData, styleDef, name) {
+            return L.geoJson(geojsonData, {
+                style: function() { return styleDef; },
+                onEachFeature: function(feature, layer) {
+                    layer.on('click', function(e) {
+                        L.DomEvent.stopPropagation(e); // Prevent map click from firing
+                        openAttributePanel(feature, name);
+                    });
+                }
+            });
+        }
+
+        // Add Layers (Checks if data files loaded successfully to prevent console errors)
+        const layers = {};
+        if(typeof json_satara_b_2 !== 'undefined') layers.satara = loadCustomLayer(json_satara_b_2, styles.satara, 'Satara Boundary').addTo(map);
+        if(typeof json_landuse_3 !== 'undefined') layers.landuse = loadCustomLayer(json_landuse_3, styles.landuse, 'Land Use').addTo(map);
+        if(typeof json_water_6 !== 'undefined') layers.water = loadCustomLayer(json_water_6, styles.water, 'Water Body').addTo(map);
+        if(typeof json_wateways_5 !== 'undefined') layers.waterways = loadCustomLayer(json_wateways_5, styles.waterways, 'Waterway').addTo(map);
+        if(typeof json_road_8 !== 'undefined') layers.road = loadCustomLayer(json_road_8, styles.road, 'Road Network').addTo(map);
+        if(typeof json_railway_7 !== 'undefined') layers.railway = loadCustomLayer(json_railway_7, styles.railway, 'Railway Line').addTo(map);
+        if(typeof json_building_4 !== 'undefined') layers.building = loadCustomLayer(json_building_4, styles.building, 'Building').addTo(map);
+
+        // Map click closes panel
+        map.on('click', closeAttributePanel);
+
+        // 6. UI Controls Binding (Toggles & Opacity)
+        Object.keys(layers).forEach(key => {
+            // Toggles
+            const toggle = document.getElementById(`toggle-${key}`);
+            if(toggle) {
+                toggle.addEventListener('change', (e) => {
+                    e.target.checked ? map.addLayer(layers[key]) : map.removeLayer(layers[key]);
+                });
+            }
+            // Opacity Sliders
+            const slider = document.getElementById(`op-${key}`);
+            if(slider) {
+                slider.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    layers[key].eachLayer(layer => {
+                        if (layer.setStyle) {
+                            let defaultStyle = styles[key];
+                            layer.setStyle({ 
+                                opacity: val, 
+                                fillOpacity: defaultStyle.fillOpacity > 0 ? (val * defaultStyle.fillOpacity) : 0 
+                            });
+                        }
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
